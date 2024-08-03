@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, session
 import mysql.connector
-from db import get_db_connection, execute_query, fetch_one, fetch_all, is_central_node_up
+from db import execute_query, fetch_one, fetch_all, is_central_node_up
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_here'  # Ensure you have a secret key for flash messages
@@ -43,7 +43,12 @@ def central_node_failure(node):
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    node = session.get('current_node')
+    central_node_status = central_node_failure(node)
+    if central_node_status:
+        return render_template('index.html')
+    movies = fetch_all("SELECT * FROM movie")
+    return render_template('index.html', movies=movies)
 
 @app.route('/insert', methods=['POST'])
 def insert_movie():
