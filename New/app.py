@@ -1,100 +1,45 @@
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, flash, session
 import mysql.connector
-from db import (
-    get_db_connection_server1, 
-    get_db_connection_server2, 
-    get_db_connection_server3, 
-    retry_execute_query, 
-    fetch_one, 
-    log_transaction, 
-    retrieve_logs, 
-    apply_transactions_to_node, 
-    retrieve_missing_transactions, 
-    get_node_logs
-)
-import threading
-import time
+from db import get_db_connection, execute_query, fetch_one, fetch_all, is_central_node_up
 
 app = Flask(__name__)
-app.secret_key = 'your_secret_key_here'
+app.secret_key = 'your_secret_key_here'  # Ensure you have a secret key for flash messages
 
-# Global variables for node status simulation
-server1_online = True
-node2_online = True
-node3_online = True
-
-# Global variables for node tracking
-current_central_node = 'server1'
-
-def set_isolation_level(connection, level):
-    cursor = connection.cursor()
-    cursor.execute(f"SET SESSION TRANSACTION ISOLATION LEVEL {level}")
-    cursor.close()
-
-def promote_slave_to_central():
-    global server1_online
-    global node2_online
-    global node3_online
-    global current_central_node
-    
-    if not server1_online:
-        print("Server 1 is down. Promoting one of the slave nodes to central.")
-        if not node2_online:
-            node2_online = True
-            current_central_node = 'server2'
+def set_db_config_with_failover(release_date=None):
+    if is_central_node_up():
+        session['db_config'] = {
+            'host': "ccscloud.dlsu.edu.ph",
+            'user': "username",
+            'password': "password",
+            'database': "Complete",
+            'port': 20060
+        }
+    else:
+        if release_date and release_date < '1980-01-01':
+            session['db_config'] = {
+                'host': "ccscloud.dlsu.edu.ph",
+                'user': "username",
+                'password': "password",
+                'database': "Be1980",
+                'port': 20070
+            }
         else:
-            node3_online = True
-            current_central_node = 'server3'
-    else:
-        print("Server 1 is back online. Replicating data from temporary central node.")
-        replicate_data_from_temp_central()
-
-def replicate_data_from_temp_central():
-    global current_central_node
-    if current_central_node == 'server2':
-        central_connection = get_db_connection_server2()
-    elif current_central_node == 'server3':
-        central_connection = get_db_connection_server3()
-    else:
-        central_connection = get_db_connection_server1()
-    
-    # Retrieve transaction logs from the central node
-    central_logs = retrieve_logs()
-    
-    # Replay missing transactions on Node 2 and Node 3
-    if node2_online:
-        node2_connection = get_db_connection_server2()
-        node2_logs = get_node_logs(node2_connection)
-        missing_transactions = retrieve_missing_transactions(node2_logs, central_logs)
-        apply_transactions_to_node(node2_connection, missing_transactions)
-        node2_connection.close()
-
-    if node3_online:
-        node3_connection = get_db_connection_server3()
-        node3_logs = get_node_logs(node3_connection)
-        missing_transactions = retrieve_missing_transactions(node3_logs, central_logs)
-        apply_transactions_to_node(node3_connection, missing_transactions)
-        node3_connection.close()
-
-def check_server1_status_and_replicate():
-    global server1_online
-    while not server1_online:
-        time.sleep(10)  # Wait before checking again
-        server1_online = True
-        print("Server 1 is back online.")
-        promote_slave_to_central()
-
-threading.Thread(target=check_server1_status_and_replicate, daemon=True).start()
+            session['db_config'] = {
+                'host': "ccscloud.dlsu.edu.ph",
+                'user': "username",
+                'password': "password",
+                'database': "Af1980",
+                'port': 20080
+            }
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    set_db_config_with_failover()
+    movies = fetch_all("SELECT * FROM movie")
+    return render_template('index.html', movies=movies)
 
 @app.route('/insert', methods=['POST'])
 def insert_movie():
-    connection = get_db_connection_server1()
-    set_isolation_level(connection, 'REPEATABLE READ')
-    
     movie_id = request.form['movie_id']
     title = request.form['title']
     director_name = request.form['director_name']
@@ -110,25 +55,21 @@ def insert_movie():
     values = (movie_id, title, director_name, actor_name, release_date, production_budget, movie_rating, genre)
     
     try:
-        retry_execute_query(query, values, connection)
-        log_transaction(f"INSERT: {values}")
+        set_db_config_with_failover(release_date)
+        execute_query(query, values, session['db_config'])
         flash('Movie added successfully!', 'success')
     except Exception as e:
-        flash(f'An error occurred: {str(e)}', 'danger')
-    finally:
-        connection.close()
+        flash('An error occurred: {}'.format(str(e)), 'danger')
     
     return redirect(url_for('index'))
 
 @app.route('/search', methods=['GET'])
 def search_movie():
-    connection = get_db_connection_server1()
-    set_isolation_level(connection, 'READ COMMITTED')
-    
     movie_id = request.args.get('search_id')
     
     query = "SELECT * FROM movie WHERE MovieID = %s"
-    movie = fetch_one(query, (movie_id,), connection)
+    set_db_config_with_failover()
+    movie = fetch_one(query, (movie_id,))
     
     if movie:
         return render_template('index.html', movie=movie)
@@ -138,9 +79,6 @@ def search_movie():
 
 @app.route('/update', methods=['POST'])
 def update_movie():
-    connection = get_db_connection_server1()
-    set_isolation_level(connection, 'REPEATABLE READ')
-    
     movie_id = request.form['movie_id']
     title = request.form['title']
     director_name = request.form['director_name']
@@ -157,34 +95,66 @@ def update_movie():
     values = (title, director_name, actor_name, release_date, production_budget, movie_rating, genre, movie_id)
     
     try:
-        retry_execute_query(query, values, connection)
-        log_transaction(f"UPDATE: {values}")
+        set_db_config_with_failover(release_date)
+        execute_query(query, values, session['db_config'])
         flash('Movie updated successfully!', 'success')
     except Exception as e:
-        flash(f'An error occurred: {str(e)}', 'danger')
-    finally:
-        connection.close()
+        flash('An error occurred: {}'.format(str(e)), 'danger')
     
     return redirect(url_for('index'))
 
 @app.route('/delete', methods=['POST'])
 def delete_movie():
-    connection = get_db_connection_server1()
-    set_isolation_level(connection, 'REPEATABLE READ')
-    
     movie_id = request.form['delete_id']
     
     query = "DELETE FROM movie WHERE MovieID = %s"
     
     try:
-        retry_execute_query(query, (movie_id,), connection)
-        log_transaction(f"DELETE: {movie_id}")
+        movie = fetch_one("SELECT * FROM movie WHERE MovieID = %s", (movie_id,))
+        if not movie:
+            flash('Movie not found!', 'danger')
+            return redirect(url_for('index'))
+
+        release_date = movie['ReleaseDate']
+        set_db_config_with_failover(release_date)
+
+        execute_query(query, (movie_id,), session['db_config'])
         flash('Movie deleted successfully!', 'success')
     except Exception as e:
-        flash(f'An error occurred: {str(e)}', 'danger')
-    finally:
-        connection.close()
+        flash('An error occurred: {}'.format(str(e)), 'danger')
     
+    return redirect(url_for('index'))
+
+@app.route('/switch_node', methods=['POST'])
+def switch_node():
+    node = request.form['node']
+    
+    if node == 'Complete':
+        session['db_config'] = {
+            'host': "ccscloud.dlsu.edu.ph",
+            'user': "username",
+            'password': "password",
+            'database': "Complete",
+            'port': 20060
+        }
+    elif node == 'Be1980':
+        session['db_config'] = {
+            'host': "ccscloud.dlsu.edu.ph",
+            'user': "username",
+            'password': "password",
+            'database': "Be1980",
+            'port': 20070
+        }
+    elif node == 'Af1980':
+        session['db_config'] = {
+            'host': "ccscloud.dlsu.edu.ph",
+            'user': "username",
+            'password': "password",
+            'database': "Af1980",
+            'port': 20080
+        }
+    
+    flash(f'Switched to {node} database.', 'success')
     return redirect(url_for('index'))
 
 if __name__ == '__main__':
