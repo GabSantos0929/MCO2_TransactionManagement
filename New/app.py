@@ -5,14 +5,34 @@ from db import execute_query, fetch_one, fetch_all, is_central_node_up, fetch_bi
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_here'  # Ensure you have a secret key for flash messages
 
-def direct_to_central():
-    session['db_config'] = {
+def direct_to_central(node):
+    central_node_status = is_central_node_up()
+
+    if central_node_status:
+        session['db_config'] = {
             'host': "ccscloud.dlsu.edu.ph",
             'user': "username",
             'password': "password",
             'database': "Complete",
             'port': 20060
         }
+    else:
+        if node == 'Be1980':
+            session['db_config'] = {
+                'host': "ccscloud.dlsu.edu.ph",
+                'user': "username",
+                'password': "password",
+                'database': "Be1980",
+                'port': 20070
+            }
+        elif node == 'Af1980':
+            session['db_config'] = {
+                'host': "ccscloud.dlsu.edu.ph",
+                'user': "username",
+                'password': "password",
+                'database': "Af1980",
+                'port': 20080
+            }
 
 def central_node_failure(node):
     if node == 'Complete':
@@ -87,7 +107,7 @@ def insert_movie():
     values = (movie_id, title, director_name, actor_name, release_date, production_budget, movie_rating, genre)
     
     try:
-        direct_to_central()
+        direct_to_central(node)
         execute_query(query, values, session['db_config'])
         flash('Movie added successfully!', 'success')
     except Exception as e:
@@ -135,7 +155,7 @@ def update_movie():
     values = (title, director_name, actor_name, release_date, production_budget, movie_rating, genre, movie_id)
     
     try:
-        direct_to_central()
+        direct_to_central(node)
         execute_query(query, values, session['db_config'])
         flash('Movie updated successfully!', 'success')
     except Exception as e:
@@ -159,7 +179,7 @@ def delete_movie():
         if not movie:
             flash('Movie not found!', 'danger')
             return redirect(url_for('index'))
-        direct_to_central()
+        direct_to_central(node)
         execute_query(query, (movie_id,), session['db_config'])
         flash('Movie deleted successfully!', 'success')
     except Exception as e:
