@@ -166,7 +166,7 @@ def delete_movie():
 @app.route('/switch_node', methods=['POST'])
 def switch_node():
     node = request.form['node']
-    
+
     if node == 'Complete':
         central_node_status = is_central_node_up()
         if central_node_status:

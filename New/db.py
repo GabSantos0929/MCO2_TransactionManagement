@@ -1,5 +1,5 @@
 import mysql.connector
-from flask import session
+from flask import session, flash
 
 def get_db_connection():
     db_config = session.get('db_config', {
