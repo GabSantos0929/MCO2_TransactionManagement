@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, session
 import mysql.connector
-from db import execute_query, fetch_one, fetch_all, is_central_node_up, fetch_binlog_from_slave, apply_binlog_to_master, get_last_executed_position
+from db import execute_query, fetch_one, fetch_all, is_central_node_up, is_be1980_node_up, is_af1980_node_up
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_here'  # Ensure you have a secret key for flash messages
@@ -34,62 +34,38 @@ def direct_to_central(node):
                 'port': 20080
             }
 
-def central_node_failure(node):
+def node_failure(node):
     if node == 'Complete':
         central_node_status = is_central_node_up()
         if not central_node_status:
             return True
-    return False
-
-def catch_up_with_transactions():
-    master_config = {
-        'host': "ccscloud.dlsu.edu.ph",
-        'user': "username",
-        'password': "password",
-        'database': "Complete",
-        'port': 20060
-    }
-    
-    last_position = get_last_executed_position(master_config)
-    
-    bf1980_slave_config = {
-        'host': "ccscloud.dlsu.edu.ph",
-        'user': "username",
-        'password': "password",
-        'database': "Be1980",
-        'port': 20070
-    }
-    
-    af1980_slave_config = {
-        'host': "ccscloud.dlsu.edu.ph",
-        'user': "username",
-        'password': "password",
-        'database': "Af1980",
-        'port': 20080
-    }
-    
-    bf1980_events = fetch_binlog_from_slave(bf1980_slave_config, last_position)
-    af1980_events = fetch_binlog_from_slave(af1980_slave_config, last_position)
-    
-    apply_binlog_to_master(bf1980_events, master_config)
-    apply_binlog_to_master(af1980_events, master_config)
+        return False
+    elif node == 'Be1980':
+        be1980_node_status = is_be1980_node_up()
+        if not be1980_node_status:
+            return True
+        return False
+    elif node == 'Af1980':
+        af1980_node_status = is_af1980_node_up()
+        if not af1980_node_status:
+            return True
+        return False
 
 @app.route('/')
 def index():
     node = session.get('current_node')
-    central_node_status = central_node_failure(node)
-    if central_node_status:
+    node_status = node_failure(node)
+    if node_status:
         return render_template('index.html')
-    # catch_up_with_transactions()
     movies = fetch_all("SELECT * FROM movie")
     return render_template('index.html', movies=movies)
 
 @app.route('/insert', methods=['POST'])
 def insert_movie():
     node = session.get('current_node')
-    central_node_status = central_node_failure(node)
-    if central_node_status:
-        flash('Central node is down. Please connect to a different node')
+    node_status = node_failure(node)
+    if node_status:
+        flash(f'{node} node is down. Please connect to a different node')
         return redirect(url_for('index'))
     
     movie_id = request.form['movie_id']
@@ -118,9 +94,9 @@ def insert_movie():
 @app.route('/search', methods=['GET'])
 def search_movie():
     node = session.get('current_node')
-    central_node_status = central_node_failure(node)
-    if central_node_status:
-        flash('Central node is down. Please connect to a different node')
+    node_status = node_failure(node)
+    if node_status:
+        flash(f'{node} node is down. Please connect to a different node')
         return redirect(url_for('index'))
 
     movie_id = request.args.get('search_id')
@@ -134,9 +110,9 @@ def search_movie():
 @app.route('/update', methods=['POST'])
 def update_movie():
     node = session.get('current_node')
-    central_node_status = central_node_failure(node)
-    if central_node_status:
-        flash('Central node is down. Please connect to a different node')
+    node_status = node_failure(node)
+    if node_status:
+        flash(f'{node} node is down. Please connect to a different node')
         return redirect(url_for('index'))
     
     movie_id = request.form['movie_id']
@@ -166,9 +142,9 @@ def update_movie():
 @app.route('/delete', methods=['POST'])
 def delete_movie():
     node = session.get('current_node')
-    central_node_status = central_node_failure(node)
-    if central_node_status:
-        flash('Central node is down. Please connect to a different node')
+    node_status = node_failure(node)
+    if node_status:
+        flash(f'{node} node is down. Please connect to a different node')
         return redirect(url_for('index'))
     
     movie_id = request.form['delete_id']
@@ -206,25 +182,33 @@ def switch_node():
         else:
             flash('Central node is down. Please connect to a different node')
     elif node == 'Be1980':
-        session['db_config'] = {
-            'host': "ccscloud.dlsu.edu.ph",
-            'user': "username",
-            'password': "password",
-            'database': "Be1980",
-            'port': 20070
-        }
-        session['current_node'] = 'Be1980'
-        flash(f'Connected to {session["current_node"]}.', 'success')
+        be1980_node_status = is_be1980_node_up()
+        if be1980_node_status:
+            session['db_config'] = {
+                'host': "ccscloud.dlsu.edu.ph",
+                'user': "username",
+                'password': "password",
+                'database': "Be1980",
+                'port': 20070
+            }
+            session['current_node'] = 'Be1980'
+            flash(f'Connected to {session["current_node"]}.', 'success')
+        else:
+            flash('Be1980 node is down. Please connect to a different node')
     elif node == 'Af1980':
-        session['db_config'] = {
-            'host': "ccscloud.dlsu.edu.ph",
-            'user': "username",
-            'password': "password",
-            'database': "Af1980",
-            'port': 20080
-        }
-        session['current_node'] = 'Af1980'
-        flash(f'Connected to {session["current_node"]}.', 'success')
+        af1980_node_status = is_af1980_node_up()
+        if af1980_node_status:
+            session['db_config'] = {
+                'host': "ccscloud.dlsu.edu.ph",
+                'user': "username",
+                'password': "password",
+                'database': "Af1980",
+                'port': 20080
+            }
+            session['current_node'] = 'Af1980'
+            flash(f'Connected to {session["current_node"]}.', 'success')
+        else:
+            flash('Af1980 node is down. Please connect to a different node')
     
     return redirect(url_for('index'))
 

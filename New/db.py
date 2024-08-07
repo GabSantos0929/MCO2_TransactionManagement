@@ -70,3 +70,31 @@ def is_central_node_up():
         return True
     except mysql.connector.Error:
         return False
+
+def is_be1980_node_up():
+    try:
+        connection = mysql.connector.connect(
+            host="ccscloud.dlsu.edu.ph",
+            user="username",
+            password="password",
+            database="Be1980",
+            port=20070
+        )
+        connection.close()
+        return True
+    except mysql.connector.Error:
+        return False
+
+def is_af1980_node_up():
+    try:
+        connection = mysql.connector.connect(
+            host="ccscloud.dlsu.edu.ph",
+            user="username",
+            password="password",
+            database="Af1980",
+            port=20080
+        )
+        connection.close()
+        return True
+    except mysql.connector.Error:
+        return False
