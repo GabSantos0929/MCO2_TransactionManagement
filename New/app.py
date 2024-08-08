@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, session
 import mysql.connector
-from db import execute_query, fetch_one, fetch_all, is_central_node_up, is_be1980_node_up, is_af1980_node_up
+from db import execute_query, fetch_one, fetch_all, set_isolation_level, is_central_node_up, is_be1980_node_up, is_af1980_node_up, execute_missed_transactions
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_here'  # Ensure you have a secret key for flash messages
@@ -57,6 +57,13 @@ def index():
     node_status = node_failure(node)
     if node_status:
         return render_template('index.html')
+
+    if node == 'Complete' and is_central_node_up():
+        try:
+            execute_missed_transactions()
+        except Exception as e:
+            flash(f'Error executing missed transactions: {str(e)}', 'danger')
+    
     movies = fetch_all("SELECT * FROM movie")
     return render_template('index.html', movies=movies)
 
@@ -77,13 +84,12 @@ def insert_movie():
     movie_rating = request.form['movie_rating']
     genre = request.form['genre']
     
-    query = """INSERT INTO movie 
-               (MovieID, Title, DirectorName, ActorName, ReleaseDate, ProductionBudget, MovieRating, Genre) 
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"""
+    query = """INSERT INTO movie (MovieID, Title, DirectorName, ActorName, ReleaseDate, ProductionBudget, MovieRating, Genre) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"""
     values = (movie_id, title, director_name, actor_name, release_date, production_budget, movie_rating, genre)
     
     try:
         direct_to_central(node)
+        set_isolation_level(session['db_config'], 'REPEATABLE READ')
         execute_query(query, values, session['db_config'])
         flash('Movie added successfully!', 'success')
     except Exception as e:
@@ -98,6 +104,8 @@ def search_movie():
     if node_status:
         flash(f'{node} node is down. Please connect to a different node')
         return redirect(url_for('index'))
+
+    set_isolation_level(session['db_config'], 'READ COMMITTED')
 
     movie_id = request.args.get('search_id')
     query = "SELECT * FROM movie WHERE MovieID = %s"
@@ -124,14 +132,12 @@ def update_movie():
     movie_rating = request.form['movie_rating']
     genre = request.form['genre']
     
-    query = """UPDATE movie 
-               SET Title = %s, DirectorName = %s, ActorName = %s, ReleaseDate = %s, 
-                   ProductionBudget = %s, MovieRating = %s, Genre = %s 
-               WHERE MovieID = %s"""
+    query = """UPDATE movie SET Title = %s, DirectorName = %s, ActorName = %s, ReleaseDate = %s, ProductionBudget = %s, MovieRating = %s, Genre = %s WHERE MovieID = %s"""
     values = (title, director_name, actor_name, release_date, production_budget, movie_rating, genre, movie_id)
     
     try:
         direct_to_central(node)
+        set_isolation_level(session['db_config'], 'REPEATABLE READ')
         execute_query(query, values, session['db_config'])
         flash('Movie updated successfully!', 'success')
     except Exception as e:
@@ -156,6 +162,7 @@ def delete_movie():
             flash('Movie not found!', 'danger')
             return redirect(url_for('index'))
         direct_to_central(node)
+        set_isolation_level(session['db_config'], 'REPEATABLE READ')
         execute_query(query, (movie_id,), session['db_config'])
         flash('Movie deleted successfully!', 'success')
     except Exception as e:
