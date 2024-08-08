@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, session
 import mysql.connector
-from db import execute_query, fetch_one, fetch_all, set_isolation_level, is_central_node_up, is_be1980_node_up, is_af1980_node_up, execute_missed_transactions
+from db import execute_query, fetch_one, fetch_all, set_isolation_level, is_central_node_up, is_be1980_node_up, is_af1980_node_up, write_transaction_to_file, execute_missed_transactions
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_here'  # Ensure you have a secret key for flash messages
@@ -16,7 +16,25 @@ def direct_to_central(node):
             'database': "Complete",
             'port': 20060
         }
+        session['secondary_db_config'] = None
+        if node == 'Be1980':
+            session['secondary_db_config'] = {
+                'host': "ccscloud.dlsu.edu.ph",
+                'user': "username",
+                'password': "password",
+                'database': "Be1980",
+                'port': 20070
+            }
+        elif node == 'Af1980':
+            session['secondary_db_config'] = {
+                'host': "ccscloud.dlsu.edu.ph",
+                'user': "username",
+                'password': "password",
+                'database': "Af1980",
+                'port': 20080
+            }
     else:
+        session['secondary_db_config'] = None
         if node == 'Be1980':
             session['db_config'] = {
                 'host': "ccscloud.dlsu.edu.ph",
@@ -91,6 +109,11 @@ def insert_movie():
         direct_to_central(node)
         set_isolation_level(session['db_config'], 'REPEATABLE READ')
         execute_query(query, values, session['db_config'])
+        if session.get('secondary_db_config'):
+            execute_query(query, values, session['secondary_db_config'])
+        else:
+            if node != 'Complete':
+                write_transaction_to_file(query, values)
         flash('Movie added successfully!', 'success')
     except Exception as e:
         flash('An error occurred: {}'.format(str(e)), 'danger')
@@ -139,6 +162,11 @@ def update_movie():
         direct_to_central(node)
         set_isolation_level(session['db_config'], 'REPEATABLE READ')
         execute_query(query, values, session['db_config'])
+        if session.get('secondary_db_config'):
+            execute_query(query, values, session['secondary_db_config'])
+        else:
+            if node != 'Complete':
+                write_transaction_to_file(query, values)
         flash('Movie updated successfully!', 'success')
     except Exception as e:
         flash('An error occurred: {}'.format(str(e)), 'danger')
@@ -164,6 +192,11 @@ def delete_movie():
         direct_to_central(node)
         set_isolation_level(session['db_config'], 'REPEATABLE READ')
         execute_query(query, (movie_id,), session['db_config'])
+        if session.get('secondary_db_config'):
+            execute_query(query, values, session['secondary_db_config'])
+        else:
+            if node != 'Complete':
+                write_transaction_to_file(query, (movie_id,))
         flash('Movie deleted successfully!', 'success')
     except Exception as e:
         flash('An error occurred: {}'.format(str(e)), 'danger')

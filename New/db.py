@@ -26,9 +26,6 @@ def execute_query(query, values, db_config):
         database=db_config['database'],
         port=db_config['port']
     )
-
-    if db_config['database'] != "Complete":
-        write_transaction_to_file(query, values)
     
     cursor = connection.cursor()
     cursor.execute(query, values)

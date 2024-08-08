@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Distributed Movie Database</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <!-- Bootstrap CSS -->
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .tab-content {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="mt-5">Distributed Movie Database</h1>
+
+        <!-- Display Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=True) %}
+            {% if messages %}
+                <div class="alert {{ messages[0][0] }}">
+                    {{ messages[0][1] }}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <!-- Tab Navigation -->
+        <ul class="nav nav-tabs" id="myTab" role="tablist">
+            <li class="nav-item">
+                <a class="nav-link active" id="home-tab" data-toggle="tab" href="#home" role="tab" aria-controls="home" aria-selected="true">Home</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" id="insert-tab" data-toggle="tab" href="#insert" role="tab" aria-controls="insert" aria-selected="false">Insert Movie</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" id="search-tab" data-toggle="tab" href="#search" role="tab" aria-controls="search" aria-selected="false">Search Movie</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" id="update-tab" data-toggle="tab" href="#update" role="tab" aria-controls="update" aria-selected="false">Update Movie</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" id="delete-tab" data-toggle="tab" href="#delete" role="tab" aria-controls="delete" aria-selected="false">Delete Movie</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" id="view-tab" data-toggle="tab" href="#view" role="tab" aria-controls="view" aria-selected="false">View Movies</a>
+            </li>
+        </ul>
+
+        <!-- Tab Content -->
+        <div class="tab-content" id="myTabContent">
+            <div class="tab-pane fade show active" id="home" role="tabpanel" aria-labelledby="home-tab">
+                <h2>Select Database Node</h2>
+                <form action="{{ url_for('switch_node') }}" method="post">
+                    <button type="submit" name="node" value="Complete" class="btn btn-primary">Complete</button>
+                    <button type="submit" name="node" value="Be1980" class="btn btn-primary">Before 1980</button>
+                    <button type="submit" name="node" value="Af1980" class="btn btn-primary">1980 Onwards</button>
+                </form>
+            </div>
+
+            <div class="tab-pane fade" id="insert" role="tabpanel" aria-labelledby="insert-tab">
+                <h2>Add Movie</h2>
+                <form action="{{ url_for('insert_movie') }}" method="post">
+                    <div class="form-group">
+                        <label for="movie_id">Movie ID</label>
+                        <input type="text" class="form-control" id="movie_id" name="movie_id" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="title">Title</label>
+                        <input type="text" class="form-control" id="title" name="title" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="director_name">Director Name</label>
+                        <input type="text" class="form-control" id="director_name" name="director_name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="actor_name">Actor Name</label>
+                        <input type="text" class="form-control" id="actor_name" name="actor_name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="release_date">Release Date</label>
+                        <input type="date" class="form-control" id="release_date" name="release_date" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="production_budget">Production Budget</label>
+                        <input type="number" class="form-control" id="production_budget" name="production_budget" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="movie_rating">Movie Rating</label>
+                        <input type="text" class="form-control" id="movie_rating" name="movie_rating" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="genre">Genre</label>
+                        <input type="text" class="form-control" id="genre" name="genre" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Add Movie</button>
+                </form>
+            </div>
+
+            <div class="tab-pane fade" id="search" role="tabpanel" aria-labelledby="search-tab">
+                <h2>Search Movie</h2>
+                <form action="{{ url_for('search_movie') }}" method="get">
+                    <div class="form-group">
+                        <label for="search_id">Movie ID</label>
+                        <input type="text" class="form-control" id="search_id" name="search_id" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Search</button>
+                </form>
+            </div>
+
+            <div class="tab-pane fade" id="update" role="tabpanel" aria-labelledby="update-tab">
+                <h2>Update Movie</h2>
+                {% if movie %}
+                <form action="{{ url_for('update_movie') }}" method="post">
+                    <input type="hidden" name="movie_id" value="{{ movie.MovieID }}">
+                    <div class="form-group">
+                        <label for="title">Title</label>
+                        <input type="text" class="form-control" id="title" name="title" value="{{ movie.Title }}" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="director_name">Director Name</label>
+                        <input type="text" class="form-control" id="director_name" name="director_name" value="{{ movie.DirectorName }}" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="actor_name">Actor Name</label>
+                        <input type="text" class="form-control" id="actor_name" name="actor_name" value="{{ movie.ActorName }}" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="release_date">Release Date</label>
+                        <input type="date" class="form-control" id="release_date" name="release_date" value="{{ movie.ReleaseDate }}" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="production_budget">Production Budget</label>
+                        <input type="number" class="form-control" id="production_budget" name="production_budget" value="{{ movie.ProductionBudget }}" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="movie_rating">Movie Rating</label>
+                        <input type="text" class="form-control" id="movie_rating" name="movie_rating" value="{{ movie.MovieRating }}" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="genre">Genre</label>
+                        <input type="text" class="form-control" id="genre" name="genre" value="{{ movie.Genre }}" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Update Movie</button>
+                </form>
+                {% else %}
+                <p>Please search for a movie first to update.</p>
+                {% endif %}
+            </div>
+
+            <div class="tab-pane fade" id="delete" role="tabpanel" aria-labelledby="delete-tab">
+                <h2>Delete Movie</h2>
+                <form action="{{ url_for('delete_movie') }}" method="post">
+                    <div class="form-group">
+                        <label for="delete_id">Movie ID</label>
+                        <input type="text" class="form-control" id="delete_id" name="delete_id" required>
+                    </div>
+                    <button type="submit" class="btn btn-danger">Delete Movie</button>
+                </form>
+            </div>
+
+            <div class="tab-pane fade" id="view" role="tabpanel" aria-labelledby="view-tab">
+                {% if movies %}
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>MovieID</th>
+                                <th>Title</th>
+                                <th>Director Name</th>
+                                <th>Actor Name</th>
+                                <th>Release Date</th>
+                                <th>Production Budget</th>
+                                <th>Movie Rating</th>
+                                <th>Genre</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for movie in movies %}
+                                <tr>
+                                    <td>{{ movie.MovieID }}</td>
+                                    <td>{{ movie.Title }}</td>
+                                    <td>{{ movie.DirectorName }}</td>
+                                    <td>{{ movie.ActorName }}</td>
+                                    <td>{{ movie.ReleaseDate }}</td>
+                                    <td>{{ movie.ProductionBudget }}</td>
+                                    <td>{{ movie.MovieRating }}</td>
+                                    <td>{{ movie.Genre }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                    <p>No movies available.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Bootstrap JS and dependencies -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.3/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+</body>
+</html>
