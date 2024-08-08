@@ -58,7 +58,7 @@ def index():
     if node_status:
         return render_template('index.html')
 
-    if node == 'Complete' and is_central_node_up():
+    if node == 'Complete' and not node_status:
         try:
             execute_missed_transactions()
         except Exception as e:
